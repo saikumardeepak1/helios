@@ -1,5 +1,6 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 
 from pydantic import BaseModel
 
@@ -17,6 +18,7 @@ class SpanOut(BaseModel):
     id: uuid.UUID
     parent_span_id: uuid.UUID | None
     kind: str
+    model: str | None
     input: dict | None
     output: dict | None
     prompt_tokens: int
@@ -46,3 +48,19 @@ class RunDetailOut(BaseModel):
     ended_at: datetime | None
     risk_score: int
     spans: list[SpanOut]
+
+
+class AgentCostOut(BaseModel):
+    agent_name: str
+    cost_usd: Decimal
+
+
+class DailyCostOut(BaseModel):
+    day: date
+    cost_usd: Decimal
+
+
+class CostSummaryOut(BaseModel):
+    total_usd: Decimal
+    by_agent: list[AgentCostOut]
+    by_day: list[DailyCostOut]

@@ -3,9 +3,10 @@ import sys
 from datetime import UTC, datetime
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Agent, Organization, Run
+from app.models import Agent, CostRecord, Organization, Run, Span
 from app.workers.tasks import _analyze_run_async
 
 
@@ -25,6 +26,42 @@ async def test_analyze_run_async_does_not_raise_for_an_existing_run(
     await db_session.refresh(run)
 
     await _analyze_run_async(str(run.id))
+
+
+@pytest.mark.asyncio
+async def test_analyze_run_async_creates_cost_records_for_modeled_spans(
+    db_session: AsyncSession,
+) -> None:
+    org = Organization(name="Acme Corp")
+    agent = Agent(name="support-bot", version="1.0.0")
+    org.agents.append(agent)
+    db_session.add(org)
+    await db_session.flush()
+
+    run = Run(agent_id=agent.id, status="completed", started_at=datetime.now(UTC))
+    db_session.add(run)
+    await db_session.flush()
+    db_session.add(
+        Span(
+            run_id=run.id,
+            kind="llm_call",
+            model="gpt-4o-mini",
+            started_at=datetime.now(UTC),
+            prompt_tokens=1000,
+            completion_tokens=1000,
+        )
+    )
+    await db_session.commit()
+
+    await _analyze_run_async(str(run.id))
+
+    records = (
+        (await db_session.execute(select(CostRecord).where(CostRecord.run_id == run.id)))
+        .scalars()
+        .all()
+    )
+    assert len(records) == 1
+    assert records[0].model == "gpt-4o-mini"
 
 
 @pytest.mark.asyncio

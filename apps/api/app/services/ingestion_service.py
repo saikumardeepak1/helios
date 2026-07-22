@@ -44,6 +44,7 @@ async def ingest_run(
         span = Span(
             run_id=run.id,
             kind=span_in.kind,
+            model=span_in.model,
             input=span_in.input,
             output=span_in.output,
             prompt_tokens=span_in.prompt_tokens,
