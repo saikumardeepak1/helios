@@ -47,7 +47,7 @@ class ApiKey(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     organization_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
-    prefix: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    prefix: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     hashed_key: Mapped[str] = mapped_column(String(255), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
