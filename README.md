@@ -29,7 +29,42 @@ docs/                Planning and architecture docs
 
 ## Getting started
 
-Local development setup lands in the `feature/project-scaffolding` PR — this section will be filled in with `docker compose up` instructions once that merges.
+Requires Docker, Python 3.12+, and Node 20+.
+
+```bash
+# start the full stack (postgres, redis, api, web)
+docker compose -f infra/docker-compose.yml up --build
+
+# api: http://localhost:8000 (docs at /docs)
+# web: http://localhost:3000
+```
+
+### Running services individually
+
+```bash
+# API
+cd apps/api
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+uvicorn app.main:app --reload
+
+# Web
+cd apps/web
+npm install
+npm run dev
+```
+
+### Running tests
+
+```bash
+# API
+cd apps/api && source .venv/bin/activate && pytest -q --cov=app
+
+# Web
+cd apps/web && npm run test
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the branch/PR workflow.
 
 ## License
 
