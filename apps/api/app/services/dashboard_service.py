@@ -6,9 +6,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import Agent, CostRecord, Run, Span
+from app.models import Agent, Alert, CostRecord, Run, Span
 from app.schemas.dashboard import (
     AgentCostOut,
+    AlertOut,
     CostSummaryOut,
     DailyCostOut,
     RunDetailOut,
@@ -117,3 +118,58 @@ async def get_cost_summary(
             for day, cost in sorted(cost_by_day.items())
         ],
     )
+
+
+def _alert_out(alert: Alert, agent_name: str) -> AlertOut:
+    return AlertOut(
+        id=alert.id,
+        run_id=alert.run_id,
+        agent_name=agent_name,
+        category=alert.category,
+        severity=alert.severity,
+        detail=alert.detail,
+        created_at=alert.created_at,
+    )
+
+
+async def list_alerts(
+    db: AsyncSession,
+    organization_id: uuid.UUID,
+    severity: str | None = None,
+    category: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[AlertOut]:
+    query = (
+        select(Alert, Agent.name)
+        .join(Run, Run.id == Alert.run_id)
+        .join(Agent, Agent.id == Run.agent_id)
+        .where(Agent.organization_id == organization_id)
+        .order_by(Alert.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    if severity is not None:
+        query = query.where(Alert.severity == severity)
+    if category is not None:
+        query = query.where(Alert.category == category)
+
+    rows = (await db.execute(query)).all()
+    return [_alert_out(alert, agent_name) for alert, agent_name in rows]
+
+
+async def get_alert(
+    db: AsyncSession, organization_id: uuid.UUID, alert_id: uuid.UUID
+) -> AlertOut | None:
+    query = (
+        select(Alert, Agent.name)
+        .join(Run, Run.id == Alert.run_id)
+        .join(Agent, Agent.id == Run.agent_id)
+        .where(Agent.organization_id == organization_id, Alert.id == alert_id)
+    )
+    row = (await db.execute(query)).first()
+    if row is None:
+        return None
+
+    alert, agent_name = row
+    return _alert_out(alert, agent_name)
