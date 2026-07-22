@@ -9,14 +9,15 @@ from sqlalchemy.pool import NullPool
 from app.core.config import get_settings
 from app.models import Run, Span
 from app.services.cost_service import calculate_run_cost
-from app.services.pii_service import scan_spans
+from app.services.injection_service import scan_spans as scan_spans_for_injection
+from app.services.pii_service import scan_spans as scan_spans_for_pii
 
 logger = logging.getLogger(__name__)
 
 
 async def _analyze_run_async(run_id: str) -> None:
-    """Post-ingestion analysis pipeline: cost rollup and PII detection, then
-    (in later issues) prompt-injection detection and risk scoring, which
+    """Post-ingestion analysis pipeline: cost rollup, PII detection, and
+    prompt-injection detection, then (in a later issue) risk scoring, which
     will combine these detectors' findings into Alert rows.
 
     Uses its own NullPool engine rather than the API's shared engine: each
@@ -50,7 +51,9 @@ async def _analyze_run_async(run_id: str) -> None:
                 .scalars()
                 .all()
             )
-            pii_findings = scan_spans(list(spans))
+            spans = list(spans)
+
+            pii_findings = scan_spans_for_pii(spans)
             if pii_findings:
                 total = sum(len(f) for f in pii_findings.values())
                 logger.warning(
@@ -58,6 +61,16 @@ async def _analyze_run_async(run_id: str) -> None:
                     run_id,
                     total,
                     len(pii_findings),
+                )
+
+            injection_findings = scan_spans_for_injection(spans)
+            if injection_findings:
+                total = sum(len(f) for f in injection_findings.values())
+                logger.warning(
+                    "Prompt injection detected in run %s: %d finding(s) across %d span(s)",
+                    run_id,
+                    total,
+                    len(injection_findings),
                 )
     finally:
         await engine.dispose()
