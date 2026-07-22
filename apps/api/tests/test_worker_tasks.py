@@ -1,0 +1,64 @@
+import subprocess
+import sys
+from datetime import UTC, datetime
+
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models import Agent, Organization, Run
+from app.workers.tasks import _analyze_run_async
+
+
+@pytest.mark.asyncio
+async def test_analyze_run_async_does_not_raise_for_an_existing_run(
+    db_session: AsyncSession,
+) -> None:
+    org = Organization(name="Acme Corp")
+    agent = Agent(name="support-bot", version="1.0.0")
+    org.agents.append(agent)
+    db_session.add(org)
+    await db_session.flush()
+
+    run = Run(agent_id=agent.id, status="completed", started_at=datetime.now(UTC))
+    db_session.add(run)
+    await db_session.commit()
+    await db_session.refresh(run)
+
+    await _analyze_run_async(str(run.id))
+
+
+@pytest.mark.asyncio
+async def test_analyze_run_async_does_not_raise_for_an_unknown_run(
+    db_session: AsyncSession,
+) -> None:
+    await _analyze_run_async("00000000-0000-0000-0000-000000000000")
+
+
+def test_analyze_run_sync_wrapper_runs_in_its_own_event_loop() -> None:
+    """analyze_run wraps asyncio.run(), which can't run inside pytest-asyncio's
+    already-running loop — verified instead by running it in a subprocess,
+    matching how an RQ worker actually invokes it. Also proves the NullPool
+    fix: two sequential asyncio.run() calls (two separate event loops) in
+    the same process, both hitting the database, is exactly the pattern
+    that broke with a pooled connection shared across loops."""
+    setup = (
+        "import asyncio\n"
+        "from app.core.db import engine\n"
+        "from app.models import Base\n"
+        "async def _setup():\n"
+        "    async with engine.begin() as conn:\n"
+        "        await conn.run_sync(Base.metadata.create_all)\n"
+        "asyncio.run(_setup())\n"
+    )
+    run_twice = (
+        "from app.workers.tasks import analyze_run\n"
+        "analyze_run('00000000-0000-0000-0000-000000000000')\n"
+        "analyze_run('00000000-0000-0000-0000-000000000000')\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", setup + run_twice],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
