@@ -57,3 +57,51 @@ export function login(email: string, password: string): Promise<LoginResponse> {
     body: JSON.stringify({ email, password }),
   });
 }
+
+export interface RunSummary {
+  id: string;
+  agent_name: string;
+  status: string;
+  started_at: string;
+  ended_at: string | null;
+  span_count: number;
+  risk_score: number;
+}
+
+export interface ToolCall {
+  id: string;
+  tool_name: string;
+  arguments: Record<string, unknown> | null;
+  result: Record<string, unknown> | null;
+}
+
+export interface Span {
+  id: string;
+  parent_span_id: string | null;
+  kind: string;
+  input: Record<string, unknown> | null;
+  output: Record<string, unknown> | null;
+  prompt_tokens: number;
+  completion_tokens: number;
+  started_at: string;
+  ended_at: string | null;
+  tool_calls: ToolCall[];
+}
+
+export interface RunDetail {
+  id: string;
+  agent_name: string;
+  status: string;
+  started_at: string;
+  ended_at: string | null;
+  risk_score: number;
+  spans: Span[];
+}
+
+export function listRuns(): Promise<RunSummary[]> {
+  return apiFetch<RunSummary[]>("/v1/runs");
+}
+
+export function getRun(runId: string): Promise<RunDetail> {
+  return apiFetch<RunDetail>(`/v1/runs/${runId}`);
+}

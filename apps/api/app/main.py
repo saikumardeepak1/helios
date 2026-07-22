@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from app.api.routes.auth import router as auth_router
 from app.api.routes.health import router as health_router
 from app.api.routes.ingest import router as ingest_router
+from app.api.routes.runs import router as runs_router
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -16,3 +17,4 @@ app = FastAPI(
 app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(ingest_router)
+app.include_router(runs_router)
