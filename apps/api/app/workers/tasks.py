@@ -11,14 +11,16 @@ from app.models import Run, Span
 from app.services.cost_service import calculate_run_cost
 from app.services.injection_service import scan_spans as scan_spans_for_injection
 from app.services.pii_service import scan_spans as scan_spans_for_pii
+from app.services.risk_service import ALERT_THRESHOLD, assess_run
 
 logger = logging.getLogger(__name__)
 
 
 async def _analyze_run_async(run_id: str) -> None:
-    """Post-ingestion analysis pipeline: cost rollup, PII detection, and
-    prompt-injection detection, then (in a later issue) risk scoring, which
-    will combine these detectors' findings into Alert rows.
+    """Post-ingestion analysis pipeline: cost rollup, PII detection,
+    prompt-injection detection, and risk scoring — which combines the two
+    detectors' findings into a 0-100 run risk score and, above threshold,
+    Alert rows the security dashboard (a later issue) will surface.
 
     Uses its own NullPool engine rather than the API's shared engine: each
     RQ job runs inside its own asyncio.run() call (a fresh event loop every
@@ -54,24 +56,11 @@ async def _analyze_run_async(run_id: str) -> None:
             spans = list(spans)
 
             pii_findings = scan_spans_for_pii(spans)
-            if pii_findings:
-                total = sum(len(f) for f in pii_findings.values())
-                logger.warning(
-                    "PII detected in run %s: %d finding(s) across %d span(s)",
-                    run_id,
-                    total,
-                    len(pii_findings),
-                )
-
             injection_findings = scan_spans_for_injection(spans)
-            if injection_findings:
-                total = sum(len(f) for f in injection_findings.values())
-                logger.warning(
-                    "Prompt injection detected in run %s: %d finding(s) across %d span(s)",
-                    run_id,
-                    total,
-                    len(injection_findings),
-                )
+
+            score = await assess_run(session, run, pii_findings, injection_findings)
+            if score >= ALERT_THRESHOLD:
+                logger.warning("Run %s scored %d risk points, alert(s) created", run_id, score)
     finally:
         await engine.dispose()
 
