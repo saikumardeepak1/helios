@@ -105,3 +105,23 @@ export function listRuns(): Promise<RunSummary[]> {
 export function getRun(runId: string): Promise<RunDetail> {
   return apiFetch<RunDetail>(`/v1/runs/${runId}`);
 }
+
+export interface AgentCost {
+  agent_name: string;
+  cost_usd: string;
+}
+
+export interface DailyCost {
+  day: string;
+  cost_usd: string;
+}
+
+export interface CostSummary {
+  total_usd: string;
+  by_agent: AgentCost[];
+  by_day: DailyCost[];
+}
+
+export function getCostSummary(days = 30): Promise<CostSummary> {
+  return apiFetch<CostSummary>(`/v1/cost/summary?days=${days}`);
+}

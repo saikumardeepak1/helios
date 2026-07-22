@@ -47,6 +47,7 @@ class Span(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         UUID(as_uuid=True), ForeignKey("spans.id", ondelete="CASCADE"), nullable=True
     )
     kind: Mapped[str] = mapped_column(String(50), nullable=False)
+    model: Mapped[str | None] = mapped_column(String(100), nullable=True)
     input: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     output: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     prompt_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

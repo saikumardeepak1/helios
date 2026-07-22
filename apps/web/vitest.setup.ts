@@ -41,3 +41,18 @@ for (const target of [globalThis, window]) {
     configurable: true,
   });
 }
+
+// jsdom doesn't implement ResizeObserver; Recharts' ResponsiveContainer needs it.
+class ResizeObserverStub {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+
+for (const target of [globalThis, window]) {
+  Object.defineProperty(target, "ResizeObserver", {
+    value: ResizeObserverStub,
+    writable: true,
+    configurable: true,
+  });
+}

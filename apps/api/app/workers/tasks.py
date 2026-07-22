@@ -6,14 +6,12 @@ from sqlalchemy.pool import NullPool
 
 from app.core.config import get_settings
 from app.models import Run
+from app.services.cost_service import calculate_run_cost
 
 
 async def _analyze_run_async(run_id: str) -> None:
-    """Post-ingestion analysis pipeline.
-
-    Cost rollup and the security detectors are added by later issues
-    (#9 cost tracking, #11 PII detection, #12 prompt injection detection,
-    #13 risk scoring); this currently just confirms the run is reachable.
+    """Post-ingestion analysis pipeline: cost rollup, then (in later issues)
+    the PII and prompt-injection detectors and risk scoring.
 
     Uses its own NullPool engine rather than the API's shared engine: each
     RQ job runs inside its own asyncio.run() call (a fresh event loop every
@@ -27,7 +25,12 @@ async def _analyze_run_async(run_id: str) -> None:
 
     try:
         async with session_factory() as session:
-            await session.execute(select(Run).where(Run.id == run_id))
+            run = (
+                await session.execute(select(Run).where(Run.id == run_id))
+            ).scalar_one_or_none()
+            if run is None:
+                return
+            await calculate_run_cost(session, run.id)
     finally:
         await engine.dispose()
 

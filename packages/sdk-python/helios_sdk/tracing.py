@@ -44,11 +44,13 @@ class SpanContext:
         local_id: str,
         parent_local_id: str | None,
         kind: str,
+        model: str | None = None,
         input: dict | None = None,
     ) -> None:
         self.local_id = local_id
         self.parent_local_id = parent_local_id
         self.kind = kind
+        self.model = model
         self.input = input
         self.output: dict | None = None
         self.prompt_tokens = 0
@@ -88,6 +90,7 @@ class SpanContext:
             "local_id": self.local_id,
             "parent_local_id": self.parent_local_id,
             "kind": self.kind,
+            "model": self.model,
             "input": self.input,
             "output": self.output,
             "prompt_tokens": self.prompt_tokens,
@@ -110,9 +113,11 @@ class RunContext:
         self._span_stack: list[str] = []
         self._spans: list[dict[str, Any]] = []
 
-    def span(self, kind: str, input: dict | None = None) -> SpanContext:
+    def span(
+        self, kind: str, model: str | None = None, input: dict | None = None
+    ) -> SpanContext:
         parent_local_id = self._span_stack[-1] if self._span_stack else None
-        return SpanContext(self, _new_local_id(), parent_local_id, kind, input)
+        return SpanContext(self, _new_local_id(), parent_local_id, kind, model, input)
 
     def __enter__(self) -> RunContext:
         self.started_at = datetime.now(timezone.utc)

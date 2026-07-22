@@ -16,6 +16,7 @@ class SpanIn(BaseModel):
     )
     parent_local_id: str | None = None
     kind: str
+    model: str | None = None
     input: dict | None = None
     output: dict | None = None
     prompt_tokens: int = 0
