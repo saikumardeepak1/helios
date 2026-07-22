@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import uuid
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -7,6 +8,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.pool import NullPool
 
 from app.core.config import get_settings
+from app.core.logging import correlation_id_var
 from app.models import Run, Span
 from app.services.cost_service import calculate_run_cost
 from app.services.injection_service import scan_spans as scan_spans_for_injection
@@ -20,7 +22,7 @@ async def _analyze_run_async(run_id: str) -> None:
     """Post-ingestion analysis pipeline: cost rollup, PII detection,
     prompt-injection detection, and risk scoring — which combines the two
     detectors' findings into a 0-100 run risk score and, above threshold,
-    Alert rows the security dashboard (a later issue) will surface.
+    Alert rows the security dashboard surfaces.
 
     Uses its own NullPool engine rather than the API's shared engine: each
     RQ job runs inside its own asyncio.run() call (a fresh event loop every
@@ -28,6 +30,9 @@ async def _analyze_run_async(run_id: str) -> None:
     reused once that loop closes. NullPool opens and closes a fresh
     connection per checkout, so there's nothing to leak across loops.
     """
+    job_correlation_id = f"job-{uuid.uuid4().hex[:12]}"
+    correlation_token = correlation_id_var.set(job_correlation_id)
+
     settings = get_settings()
     engine = create_async_engine(settings.database_url, poolclass=NullPool)
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -63,6 +68,7 @@ async def _analyze_run_async(run_id: str) -> None:
                 logger.warning("Run %s scored %d risk points, alert(s) created", run_id, score)
     finally:
         await engine.dispose()
+        correlation_id_var.reset(correlation_token)
 
 
 def analyze_run(run_id: str) -> None:

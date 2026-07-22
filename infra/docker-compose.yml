@@ -46,6 +46,21 @@ services:
       timeout: 5s
       retries: 5
 
+  worker:
+    build:
+      context: ../apps/api
+    command: ["python", "-m", "app.workers.worker"]
+    env_file:
+      - ../apps/api/.env.example
+    environment:
+      DATABASE_URL: postgresql+asyncpg://helios:helios@postgres:5432/helios
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   web:
     build:
       context: ../apps/web
