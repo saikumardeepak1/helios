@@ -65,6 +65,64 @@ async def test_analyze_run_async_creates_cost_records_for_modeled_spans(
 
 
 @pytest.mark.asyncio
+async def test_analyze_run_async_logs_a_warning_when_pii_is_detected(
+    db_session: AsyncSession, caplog: pytest.LogCaptureFixture
+) -> None:
+    org = Organization(name="Acme Corp")
+    agent = Agent(name="support-bot", version="1.0.0")
+    org.agents.append(agent)
+    db_session.add(org)
+    await db_session.flush()
+
+    run = Run(agent_id=agent.id, status="completed", started_at=datetime.now(UTC))
+    db_session.add(run)
+    await db_session.flush()
+    db_session.add(
+        Span(
+            run_id=run.id,
+            kind="llm_call",
+            started_at=datetime.now(UTC),
+            input={"prompt": "email me at a@example.com"},
+        )
+    )
+    await db_session.commit()
+
+    with caplog.at_level("WARNING", logger="app.workers.tasks"):
+        await _analyze_run_async(str(run.id))
+
+    assert any("PII detected" in record.message for record in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_analyze_run_async_does_not_log_when_no_pii_is_present(
+    db_session: AsyncSession, caplog: pytest.LogCaptureFixture
+) -> None:
+    org = Organization(name="Acme Corp")
+    agent = Agent(name="support-bot", version="1.0.0")
+    org.agents.append(agent)
+    db_session.add(org)
+    await db_session.flush()
+
+    run = Run(agent_id=agent.id, status="completed", started_at=datetime.now(UTC))
+    db_session.add(run)
+    await db_session.flush()
+    db_session.add(
+        Span(
+            run_id=run.id,
+            kind="llm_call",
+            started_at=datetime.now(UTC),
+            input={"prompt": "what's the weather today?"},
+        )
+    )
+    await db_session.commit()
+
+    with caplog.at_level("WARNING", logger="app.workers.tasks"):
+        await _analyze_run_async(str(run.id))
+
+    assert caplog.records == []
+
+
+@pytest.mark.asyncio
 async def test_analyze_run_async_does_not_raise_for_an_unknown_run(
     db_session: AsyncSession,
 ) -> None:
