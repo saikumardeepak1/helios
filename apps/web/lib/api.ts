@@ -125,3 +125,21 @@ export interface CostSummary {
 export function getCostSummary(days = 30): Promise<CostSummary> {
   return apiFetch<CostSummary>(`/v1/cost/summary?days=${days}`);
 }
+
+export interface Alert {
+  id: string;
+  run_id: string;
+  agent_name: string;
+  category: string;
+  severity: string;
+  detail: string;
+  created_at: string;
+}
+
+export function listAlerts(): Promise<Alert[]> {
+  return apiFetch<Alert[]>("/v1/alerts");
+}
+
+export function getAlert(alertId: string): Promise<Alert> {
+  return apiFetch<Alert>(`/v1/alerts/${alertId}`);
+}

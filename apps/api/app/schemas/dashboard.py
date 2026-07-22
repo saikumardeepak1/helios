@@ -64,3 +64,13 @@ class CostSummaryOut(BaseModel):
     total_usd: Decimal
     by_agent: list[AgentCostOut]
     by_day: list[DailyCostOut]
+
+
+class AlertOut(BaseModel):
+    id: uuid.UUID
+    run_id: uuid.UUID
+    agent_name: str
+    category: str
+    severity: str
+    detail: str
+    created_at: datetime

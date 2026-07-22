@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from app.api.routes.alerts import router as alerts_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.cost import router as cost_router
 from app.api.routes.health import router as health_router
@@ -20,3 +21,4 @@ app.include_router(auth_router)
 app.include_router(ingest_router)
 app.include_router(runs_router)
 app.include_router(cost_router)
+app.include_router(alerts_router)
