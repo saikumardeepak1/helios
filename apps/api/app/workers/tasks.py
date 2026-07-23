@@ -72,4 +72,8 @@ async def _analyze_run_async(run_id: str) -> None:
 
 
 def analyze_run(run_id: str) -> None:
-    asyncio.run(_analyze_run_async(run_id))
+    # Covered by test_analyze_run_sync_wrapper_runs_in_its_own_event_loop,
+    # which runs this in a subprocess (required — asyncio.run() can't nest
+    # inside pytest-asyncio's already-running loop) that this process's
+    # coverage instance can't observe.
+    asyncio.run(_analyze_run_async(run_id))  # pragma: no cover

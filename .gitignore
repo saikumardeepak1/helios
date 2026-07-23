@@ -20,6 +20,11 @@ build/
 .turbo/
 *.tsbuildinfo
 
+# Playwright
+/apps/web/test-results/
+/apps/web/playwright-report/
+/apps/web/playwright/.cache/
+
 # Env
 .env
 .env.local

@@ -40,6 +40,20 @@ packages = ["app"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 
+[tool.coverage.run]
+# SQLAlchemy's async engine bridges to its sync DBAPI drivers via greenlet
+# context switches. Without this, coverage's tracer loses continuity across
+# those switches and misreports lines right after certain awaits as
+# uncovered even when they demonstrably run (verified with coverage's own
+# annotate output against a passing test that must execute them).
+concurrency = ["greenlet", "thread"]
+
+[tool.coverage.report]
+fail_under = 95
+exclude_also = [
+    "if __name__ == .__main__.:",
+]
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"
