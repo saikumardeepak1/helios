@@ -10,10 +10,15 @@ from app.services.dashboard_service import get_cost_summary
 router = APIRouter(prefix="/v1/cost", tags=["cost"])
 
 
-@router.get("/summary", response_model=CostSummaryOut)
+@router.get("/summary", response_model=CostSummaryOut, summary="Get cost totals")
 async def get_cost_summary_route(
-    days: int = Query(default=30, gt=0, le=365),
+    days: int = Query(default=30, gt=0, le=365, description="Size of the trailing window."),
     current_user: User = Depends(require_session),
     db: AsyncSession = Depends(get_db),
 ) -> CostSummaryOut:
+    """Total spend for the caller's organization over the last `days` days,
+    broken down by agent and by day. Powers the cost analytics dashboard.
+    Only runs with at least one span carrying a `model` contribute — see
+    `SpanIn.model` in the ingestion schema.
+    """
     return await get_cost_summary(db, current_user.organization_id, days=days)
