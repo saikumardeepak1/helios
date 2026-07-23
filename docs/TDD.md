@@ -80,10 +80,17 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the entity relationship diagram. Core
 ## 7. CI/CD
 GitHub Actions, one workflow (`ci.yml`) with parallel jobs: `api-test` (ruff, mypy, pytest), `web-test` (eslint, tsc, vitest, next build), `docker-build` (build all Dockerfiles to verify they build cleanly). All required to pass before merge.
 
-## 8. Deployment
+## 8. App-level observability
+Helios dogfoods structured logging on itself, independent of the OpenTelemetry-style ingestion it offers customers for their agents.
+
+- **JSON logs everywhere**: `app/core/logging.py#configure_logging` replaces the root logger's handler with one JSON line per record (`timestamp`, `level`, `logger`, `message`, plus `correlation_id` when set) — both the API process and the RQ worker call it at startup, so `docker compose logs` produces machine-parseable output for either.
+- **Correlation IDs, not manually threaded**: a `contextvars.ContextVar` (`correlation_id_var`) holds the current request or job's id. `CorrelationIdMiddleware` sets it from an inbound `X-Request-ID` header (generating one if absent) for the duration of each API request and echoes it back on the response; `analyze_run` generates a `job-<hex>` id and sets it for the duration of that job. Every log line emitted anywhere during that request or job — across services, without passing an id parameter through every function signature — carries the same value, so `grep`-ing one id reconstructs the full story of one request or one background job.
+- **Implementation note**: the correlation id is injected via `logging.setLogRecordFactory`, not a `logging.Filter` on a handler. A handler-level filter only fires for log calls that propagate through that specific handler; a submodule logger with its own directly-attached handler (which is exactly how both RQ's own logging and pytest's `caplog` work) would never see it. Replacing the record factory stamps the field onto every `LogRecord` at creation time, before any filter or handler runs, so it's independent of the logger hierarchy or which handler ends up processing it — including in tests.
+
+## 9. Deployment
 Docker Compose is the primary deployment target for v1: `docker-compose.yml` defines `api`, `worker`, `web`, `postgres`, `redis`. Documented in [deployment guide](../README.md#deployment) once written. Environment configuration via `.env` (see `.env.example`).
 
-## 9. Tradeoffs and future improvements
+## 10. Tradeoffs and future improvements
 - RQ over Celery: simpler ops, adequate for the job volume expected at this scale; would reconsider for very high ingestion throughput.
 - Rule-based detectors over ML classifiers for PII/injection: explainable and dependency-light for v1; documented as a future upgrade path.
 - Single-tenant-per-organization row scoping instead of schema-per-tenant: simpler migrations, sufficient isolation for v1's threat model.

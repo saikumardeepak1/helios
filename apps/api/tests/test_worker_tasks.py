@@ -168,6 +168,32 @@ async def test_analyze_run_async_creates_an_alert_and_logs_for_a_high_risk_run(
     alerts = (await db_session.execute(select(Alert).where(Alert.run_id == run.id))).scalars().all()
     categories = {a.category for a in alerts}
     assert categories == {"pii", "prompt_injection"}
+    assert any(
+        record.correlation_id and record.correlation_id.startswith("job-")
+        for record in caplog.records
+    )
+
+
+@pytest.mark.asyncio
+async def test_analyze_run_async_clears_the_correlation_id_after_finishing(
+    db_session: AsyncSession,
+) -> None:
+    from app.core.logging import correlation_id_var
+
+    org = Organization(name="Acme Corp")
+    agent = Agent(name="support-bot", version="1.0.0")
+    org.agents.append(agent)
+    db_session.add(org)
+    await db_session.flush()
+
+    run = Run(agent_id=agent.id, status="completed", started_at=datetime.now(UTC))
+    db_session.add(run)
+    await db_session.commit()
+    await db_session.refresh(run)
+
+    await _analyze_run_async(str(run.id))
+
+    assert correlation_id_var.get() is None
 
 
 @pytest.mark.asyncio
