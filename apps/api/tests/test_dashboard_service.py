@@ -59,6 +59,24 @@ async def test_list_runs_filters_by_status(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
+async def test_list_runs_filters_by_agent_id(db_session: AsyncSession) -> None:
+    org, agent, run = await _seed(db_session)
+    other_agent = Agent(name="other-bot", version="1.0.0")
+    org_result = await db_session.get(Organization, org.id)
+    assert org_result is not None
+    org_result.agents.append(other_agent)
+    await db_session.flush()
+    other_run = Run(agent_id=other_agent.id, status="completed", started_at=datetime.now(UTC))
+    db_session.add(other_run)
+    await db_session.commit()
+
+    results = await list_runs(db_session, org.id, agent_id=agent.id)
+
+    assert len(results) == 1
+    assert results[0].id == run.id
+
+
+@pytest.mark.asyncio
 async def test_get_run_detail_includes_spans_and_tool_calls(db_session: AsyncSession) -> None:
     org, _, run = await _seed(db_session)
 

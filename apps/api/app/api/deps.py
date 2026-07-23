@@ -31,7 +31,11 @@ async def require_api_key(
         select(Organization).where(Organization.id == api_key.organization_id)
     )
     organization = org_result.scalar_one_or_none()
-    if organization is None:
+    if organization is None:  # pragma: no cover
+        # Unreachable in practice: api_keys.organization_id is a foreign key
+        # with ON DELETE CASCADE, so an ApiKey row can't outlive its
+        # Organization. Kept as defense-in-depth against DB-level corruption
+        # rather than trusting the constraint unconditionally in auth code.
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid API key")
 
     return organization
