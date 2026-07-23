@@ -12,6 +12,7 @@ Teams shipping AI agents can't answer basic operational questions: why a run fai
 - [Technical Design Document](docs/TDD.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Roadmap](docs/ROADMAP.md)
+- **API reference** — interactive, generated from the running API: Swagger UI at `/docs`, ReDoc at `/redoc` (e.g. http://localhost:8000/docs once the stack is up). Every route has a description and every schema has an example payload — there's no separately maintained API doc to go stale.
 
 ## Status
 
