@@ -14,6 +14,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -24,12 +25,30 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+
+  # One-shot migration runner. Both api and worker wait for this to exit 0
+  # before starting, so there's exactly one place migrations run — avoids
+  # the race of two containers trying to apply the same migration at once,
+  # and means neither api nor worker needs its own migration logic.
+  migrate:
+    build:
+      context: ../apps/api
+    command: ["alembic", "upgrade", "head"]
+    env_file:
+      - ../apps/api/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://helios:helios@postgres:5432/helios
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
 
   api:
     build:
       context: ../apps/api
     env_file:
-      - ../apps/api/.env.example
+      - ../apps/api/.env
     environment:
       DATABASE_URL: postgresql+asyncpg://helios:helios@postgres:5432/helios
       REDIS_URL: redis://redis:6379/0
@@ -40,18 +59,21 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   worker:
     build:
       context: ../apps/api
     command: ["python", "-m", "app.workers.worker"]
     env_file:
-      - ../apps/api/.env.example
+      - ../apps/api/.env
     environment:
       DATABASE_URL: postgresql+asyncpg://helios:helios@postgres:5432/helios
       REDIS_URL: redis://redis:6379/0
@@ -60,16 +82,40 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      # RQ has no built-in health server; this checks the worker's own
+      # dependency (Redis) is reachable as a liveness proxy. It won't catch
+      # a worker that's alive but wedged mid-job — Docker's own process
+      # supervision (the container exits if the Python process dies) covers
+      # the harder failure mode.
+      test: ["CMD", "python", "-c", "import os, redis; redis.from_url(os.environ['REDIS_URL']).ping()"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
   web:
     build:
       context: ../apps/web
+      args:
+        # Next.js inlines NEXT_PUBLIC_* vars into the client bundle at build
+        # time — setting it under `environment:` below would have no effect
+        # on anything the browser actually sees, only server-side code.
+        NEXT_PUBLIC_API_URL: http://localhost:8000
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
     ports:
       - "3000:3000"
     depends_on:
       - api
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/login', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
 volumes:
   postgres_data:
